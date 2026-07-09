@@ -1,0 +1,28 @@
+---
+source: src/mqtt/tests/discovery_test.rs
+expression: p
+---
+{
+  "availability_topic": "my_jk_bms/availability",
+  "device": {
+    "hw_version": "15A",
+    "identifiers": [
+      "my_jk_bms"
+    ],
+    "manufacturer": "JIKONG",
+    "model": "JK_PB2A16S20P",
+    "name": "my_jk_bms",
+    "serial_number": "[redacted]",
+    "sw_version": "15.41"
+  },
+  "device_class": "voltage",
+  "name": "Total Voltage",
+  "object_id": "my_jk_bms_total_voltage",
+  "payload_available": "online",
+  "payload_not_available": "offline",
+  "state_class": "measurement",
+  "state_topic": "my_jk_bms/total_voltage/state",
+  "suggested_display_precision": 2,
+  "unique_id": "my_jk_bms_total_voltage",
+  "unit_of_measurement": "V"
+}
