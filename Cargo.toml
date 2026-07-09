@@ -1,6 +1,6 @@
 [package]
 name = "jkbms2mqtt"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 rust-version = "1.85"
 description = "JK-BMS RS485 to MQTT bridge for Home Assistant. Run as a standalone Docker container or native binary."

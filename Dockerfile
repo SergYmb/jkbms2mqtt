@@ -23,10 +23,10 @@ RUN set -eu; \
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 
-# cargo-registry: crate source cache, shared across archs.
-# cargo-target:   per-arch (${TARGETARCH}${TARGETVARIANT}) to avoid contention
-#                 between concurrent multi-arch buildx jobs.
-RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry \
+# Both caches are per-arch (${TARGETARCH}${TARGETVARIANT}) — required to avoid
+# contention between concurrent multi-arch buildx jobs. A shared cargo-registry
+# lets both archs race on Cargo's `.cargo-ok` unpack markers → build failure.
+RUN --mount=type=cache,id=cargo-registry-${TARGETARCH}${TARGETVARIANT},target=/usr/local/cargo/registry \
     --mount=type=cache,id=cargo-target-${TARGETARCH}${TARGETVARIANT},target=/src/target,sharing=locked \
     set -eu; \
     TRIPLE=$(cat /rust-target); \
