@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Container: GHCR](https://img.shields.io/badge/container-ghcr.io-blue)](https://github.com/SergYmb/jkbms2mqtt/pkgs/container/jkbms2mqtt)
 
-JK-BMS RS485 to MQTT bridge for Home Assistant. Run as a standalone Docker container or native binary.
+JK-BMS RS485 to MQTT bridge for Home Assistant. Runs as a standalone Docker container or native binary.
 
 A small Rust service, packaged as a Docker container to run alongside a Home Assistant Docker installation. It talks to a JK BMS over USB-RS485, decodes its frames, and publishes the readings as Home Assistant MQTT-Discovery entities. Charge and balance switches are exposed back as MQTT command topics so HA can control the BMS.
 
@@ -14,11 +14,28 @@ A small Rust service, packaged as a Docker container to run alongside a Home Ass
 - Auto-detects cell count from the BMS configuration frame and creates the matching set of HA entities.
 - Registers everything via HA MQTT Discovery — no manual YAML.
 
+## MQTT / Home Assistant data
+
+Everything is published under `<BMS_NAME>/…` topics and registered via HA MQTT Discovery — entities appear in Home Assistant with no manual YAML:
+
+- **Sensors** — pack voltage / current / power / SoC / SoH / capacity, per-cell voltage and resistance, cell aggregates (min / max / average / delta), temperatures, balancer current, alarm list.
+- **Binary sensor** — `balancing_active`.
+- **Switches** — `charging` and `balancing` (writable via HA).
+- **Diagnostics** — MQTT / BMS reconnect counters, last-update age.
+- **Availability** — `<BMS_NAME>/availability` LWT (`online` / `offline`).
+- **JSON snapshot** — `<BMS_NAME>/state` — flat JSON of every sensor value, one publish per poll cycle.
+
+See [`doc/mqtt-topics.md`](doc/mqtt-topics.md) for the full topic reference — names, units, value formats, discovery payloads, and command topic contracts.
+
 ## Target hardware
 
 - **BMS:** JK-PB2A16S20P (and likely other PB-series 16S-capable units running similar firmware).
 - **Interface:** any USB-to-RS485 adapter exposed as `/dev/ttyUSB*`.
 - **Deployment platform:** Docker container for `linux/arm64/v8` (Raspberry Pi class, SBCs) or `linux/amd64` (x86_64 servers, NAS boxes) — a single multi-arch image is built from the same `Dockerfile`. Native builds for Linux, Windows, macOS Intel, and macOS Apple Silicon are also supported for development and single-host installs — see [Native builds (Linux / Windows / macOS)](#native-builds-linux--windows--macos).
+
+## Reliability
+
+The service is built to keep running through short serial disconnections, USB re-enumerations, and EMI-induced noise on the RS485 line. Corrupt frames are dropped, the BMS and MQTT broker are both reconnected automatically with backoff, and Home Assistant availability is held `online` across brief hiccups so entities don't flap.
 
 ---
 
@@ -130,25 +147,14 @@ docker buildx create --use --name multiarch-builder
 
 ### Local build (single arch, loadable into `docker`)
 
-`--load` imports a built image into your local Docker daemon, but it only supports one architecture at a time. Pick the arch you want to run locally (or test in QEMU on the same host):
+`--load` imports a built image into your local Docker daemon, but it only supports one architecture at a time. Pick the arch you want to run locally:
 
 ```sh
 # arm64 image — Raspberry Pi, SBCs, Apple Silicon under Docker Desktop
-docker buildx build --platform linux/arm64/v8 -t jkbms2mqtt:arm64 --load .
+docker buildx build --platform linux/arm64/v8 -t jkbms2mqtt:latest --load .
 
 # amd64 image — x86_64 servers, NAS, Intel/AMD desktops
-docker buildx build --platform linux/amd64 -t jkbms2mqtt:amd64 --load .
-```
-
-Run with the USB adapter passed through (substitute the tag you built):
-
-```sh
-docker run --rm \
-  --device /dev/ttyUSB0 \
-  -e BMS_NAME=my_jk_bms \
-  -e BMS_DEVICE=/dev/ttyUSB0 \
-  -e MQTT_HOST=192.168.1.10 \
-  jkbms2mqtt:arm64
+docker buildx build --platform linux/amd64 -t jkbms2mqtt:latest --load .
 ```
 
 ### Multi-arch build and publish to a registry
@@ -158,7 +164,7 @@ Produce a single manifest containing both arm64 and amd64 images. Consumers pull
 Log in to the registry:
 
 ```sh
-docker login ghcr.io
+docker login {registry}
 ```
 
 Build and push both platforms in one shot:
@@ -166,40 +172,9 @@ Build and push both platforms in one shot:
 ```sh
 docker buildx build \
   --platform linux/amd64,linux/arm64/v8 \
-  -t ghcr.io/sergymb/jkbms2mqtt:latest \
+  -t {registry}/{owner}/jkbms2mqtt:latest \
   --push \
   .
-```
-
-Verify the resulting manifest lists both platforms:
-
-```sh
-docker buildx imagetools inspect ghcr.io/sergymb/jkbms2mqtt:latest
-```
-
-### Deploy to a target without a registry
-
-Build a single-arch image matching the target host and transfer it via SSH. Pick the platform that matches the target machine:
-
-```sh
-# For an arm64 target (Raspberry Pi etc.)
-docker buildx build --platform linux/arm64/v8 -t jkbms2mqtt:arm64 --load .
-docker save jkbms2mqtt:arm64 | ssh user@target docker load
-
-# For an amd64 target (x86_64 server, NAS)
-docker buildx build --platform linux/amd64 -t jkbms2mqtt:amd64 --load .
-docker save jkbms2mqtt:amd64 | ssh user@target docker load
-```
-
-On the target, run (substitute the tag you transferred):
-
-```sh
-docker run --rm \
-  --device /dev/ttyUSB0 \
-  -e BMS_NAME=my_jk_bms \
-  -e BMS_DEVICE=/dev/ttyUSB0 \
-  -e MQTT_HOST=192.168.1.10 \
-  jkbms2mqtt:arm64
 ```
 
 ---
@@ -242,15 +217,6 @@ Run with CLI flags:
   --bms-name my_jk_bms \
   --bms-device /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0 \
   --mqtt-host 192.168.1.10
-```
-
-Or with environment variables (identical effect — CLI wins on conflict):
-
-```sh
-export BMS_NAME=my_jk_bms
-export BMS_DEVICE=/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
-export MQTT_HOST=192.168.1.10
-./target/release/jkbms2mqtt
 ```
 
 ### Windows
@@ -298,15 +264,6 @@ Run with CLI flags:
   --mqtt-host 192.168.1.10
 ```
 
-Or with environment variables:
-
-```sh
-export BMS_NAME=my_jk_bms
-export BMS_DEVICE=/dev/tty.usbserial-A1B2C3D4
-export MQTT_HOST=192.168.1.10
-./target/release/jkbms2mqtt
-```
-
 > **Serial permissions on macOS.** The user account that owns the login session generally has access to `/dev/tty.usbserial-*`. If you see a "Permission denied" error, check that no other program (Arduino IDE, an open `screen` session, etc.) is holding the port.
 
 ---
@@ -341,8 +298,6 @@ services:
     # Verify the group name with: ls -l /dev/ttyUSB0
     group_add:
       - dialout
-
-    restart: unless-stopped
 ```
 
 > **Device path note.** `devices:` populates the container's `/dev` at start time. A same-path re-enumeration (`ttyUSB0` → `ttyUSB0`) survives without any change. A path shift (`ttyUSB0` → `ttyUSB1`) does not — use the by-id symlink form above, or bind-mount the host `/dev` and add the cgroup rule `c 188:* rmw`.
@@ -375,9 +330,6 @@ Set `LOG_LEVEL` in the `environment:` block of the compose file:
 
 # Full trace of both channels (very verbose)
 - LOG_LEVEL=jkbms2mqtt=debug,jkbms2mqtt::jkbms=trace,jkbms2mqtt::mqtt=trace
-
-# Silence rumqttc / tokio-serial internals while keeping app logs verbose
-- LOG_LEVEL=warn,jkbms2mqtt=debug
 ```
 
 Changes take effect on container restart (`docker compose restart jkbms2mqtt`).
