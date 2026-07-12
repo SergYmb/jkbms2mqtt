@@ -436,36 +436,4 @@ Response: 01 10 10 78 00 02 C5 11
 
 ## Empirical Verification
 
-The following items were confirmed against a live capture from a JK-PB2A16S20P running firmware 15.41, on 13 Jun 2026.
-
-**Confirmed:**
-- Trigger-write framing for Frames `0x01` / `0x02` / `0x03` (FC `0x10`, registers `0x161E` / `0x1620` / `0x161C`, 1-register write of `0x0000`).
-- Alarm register read framing (FC `0x03`, register `0x12A0`, 2 registers; 9-byte response with 4 data bytes).
-- Charging switch write at register `0x1070` using the 13-byte FC `0x10` format with the value as a 4-byte big-endian uint32 (`00 00 00 00` for off, `00 00 00 01` for on).
-- Balance switch write at register `0x1078`, same framing — confirmed to change the balancer's actual running state on the BMS.
-- Frame total length **300 bytes** (checksum at byte 299). Earlier figure of 308 came from a timeout-split that collected the 300-byte JK frame plus the trailing 8-byte Modbus ACK into one buffer.
-- Frame 0x03 ASCII fields at offsets `0x06` (model), `0x16` (hw version), `0x1E` (sw version), `0x2E` (serial number).
-- Frame 0x01 threshold fields at the documented offsets (`cell_undervoltage_protection` = 2.630 V, `cell_overvoltage_protection` = 3.650 V, `balance_trigger_voltage` = 5 mV, and all neighbouring fields with sensible LiFePO4 values).
-- Frame 0x02 cell-voltage offsets and the "unused slots read zero" convention (cell 1 = 3.471 V, cells 9–16 = 0 on an 8S pack).
-- Five temperature fields in Frame 0x02: `mos_temperature` (0x90), `temperature_sensor_1` (0xA2), `temperature_sensor_2` (0xA4), `mos_temperature_mirror` (0xFE — not exposed), `temperature_sensor_4` (0x100), `temperature_sensor_5` (0x102). Live values: MOS = 26.4 °C, T1 = 25.4 °C, T2 = 25.1 °C, mirror = 26.4 °C, T4 = 25.3 °C, T5 = 25.2 °C — matches JK BMS Mobile App labels. Offsets 256/258 are correct; a third-party reference table (254/258) was wrong. Offset 0xFE consistently equals MOS temperature; physical T3 sensor not connected on this pack.
-- Frame 0x03 offset `0x26` confirmed as same `total_runtime` counter as Frame 0x02 offset `0xC2`: 45,895,200 s vs 45,895,238 s (38 s later), advancing at 1 Hz.
-- Polling cadence observed: Frame `0x03` every ~30 s, Frame `0x01` every ~20 s, Frame `0x01` re-triggered immediately after every successful control-register write — this is the cadence and read-after-write pattern jkbms2mqtt mirrors (see `REQUIREMENTS.md` FR-1, FR-2).
-
-**Not verified by capture (still TBD):**
-- ~~Frame trailer / 8-bit modulo checksum at byte 307~~ — **resolved**: frame is 300 bytes, checksum is sum(bytes 0..=298) mod 256 at byte 299. Verified against live hardware (see above).
-- ~~Alarm-value endianness~~ — **resolved**: big-endian is mandated by Modbus FC `0x03` (register data always transmitted high-byte-first). An all-zero capture does not require confirmation; the protocol spec is authoritative.
-- ~~Frame `0x03` offset `0x26` field semantics~~ — **resolved**: same `total_runtime` counter as Frame 0x02 offset `0xC2`, advancing at 1 Hz. "Non-uniform" appearance was a polling-cadence artefact. See Frame 0x03 field table.
-
----
-
-## Open Items
-
-| # | Item | Status |
-|---|---|---|
-| 1 | Battery capacity write register | Unknown |
-| 4 | Alarm register big-endian uint32 — endianness mandated by Modbus FC `0x03` spec (high-byte-first); closed without requiring a non-zero capture | Resolved |
-
-**Resolved (kept here for traceability):**
-- Balance switch write register = `0x1078` — verified against live capture on JK-PB2A16S20P firmware 15.41 (see Working Examples → Write balance switch, and Empirical Verification).
-- Temperature sensors 3/4 offsets (item 2) — confirmed at **256/258** from live frame analysis (2026-06-13). Offset 254 is a mirror of MOS temperature, not sensor_3. Resolved.
-- Frame 0x03 offset `0x26` semantics (item 3) — confirmed as `total_runtime` mirror (same 1 Hz counter as Frame 0x02 offset `0xC2`). "Non-uniform" appearance was a polling-cadence artefact. Redundant with Frame 0x02; not exposed as a v1 entity. Resolved 2026-06-13.
+The following items were confirmed against a live capture from a JK-PB2A16S20P running firmware 15.41.

@@ -115,9 +115,8 @@ jkbms2mqtt is implemented in Rust on Tokio.
 - Serial reconnect: see NFR-5
 
 ### NFR-4: Observability
-- Structured logs: JSON in production (`LOG_LEVEL=info`), human-readable in dev
-- Log each Frame `0x02` parse at `debug`; alarm state changes at `info`; errors at `warn`/`error`
-- Log every USB disconnect/reopen at `info` with the underlying errno.
+- Structured logs: `info` for startup/shutdown and reconnection attempts; `warn`/`error` for disconnections and errors; `debug` for BMS/MQTT operational event summaries; `trace` for raw serial bytes and MQTT payloads.
+- MQTT availability (FR-4), diagnostic HA sensors (FR-3), and the Docker healthcheck (NFR-2) together surface liveness at the app, HA, and container level.
 
 ### NFR-5: USB / Serial Resilience
 
@@ -136,4 +135,4 @@ EMI-induced USB disconnects and re-enumeration is normal operation (converter re
 - Multiple BMS units on one adapter
 - CAN bus interface
 - Web UI / REST API
-- Discharge switch control
+- Discharge switch control (may damage inverter)
