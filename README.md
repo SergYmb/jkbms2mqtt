@@ -72,10 +72,13 @@ services:
       # - BMS_SLAVE_ID=1
       # - LOG_LEVEL=info
 
-    # RS485 USB adapter exposed to the container.
-    # Use the same path on both sides so the by-id symlink resolves inside.
-    devices:
-      - "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0:/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0"
+    # Live view of the host's /dev, plus kernel-level permission for USB-serial
+    # devices (major 188 = ttyUSB*), so the container can open ttyUSB* nodes
+    # as they appear.
+    volumes:
+      - /dev:/dev
+    device_cgroup_rules:
+      - "c 188:* rw"
 
     # Grant access to serial ports.
     # Verify the group name with: ls -l /dev/ttyUSB0
@@ -83,7 +86,7 @@ services:
       - dialout
 ```
 
-> **Device path note.** `devices:` populates the container's `/dev` at start time. A same-path re-enumeration (`ttyUSB0` → `ttyUSB0`) survives without any change. A path shift (`ttyUSB0` → `ttyUSB1`) does not — use the by-id symlink form above, or bind-mount the host `/dev` and add the cgroup rule `c 188:* rmw`.
+> **Device path note.** The `/dev` bind-mount above gives the container a live view of the host's device tree, so a USB re-enumeration (`ttyUSB0` → `ttyUSB1`, e.g. after EMI) is picked up automatically — the app's own reconnect loop just keeps retrying and succeeds as soon as the by-id symlink resolves again, no container restart needed.
 
 ---
 

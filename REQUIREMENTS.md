@@ -104,7 +104,7 @@ jkbms2mqtt is implemented in Rust on Tokio.
 
 ### NFR-2: Docker deployment
 - **Target platform:** `linux/arm64/v8`
-- Device access via `devices:` in Compose, mapping a stable host identifier into the container — e.g. `- /dev/serial/by-id/usb-FTDI_Dual_RS232-HS-if00-port0:/dev/ttyUSB0`. The by-id symlink keeps the mapping valid across USB re-enumeration on the host (see NFR-5)
+- Device access via a `/dev` bind-mount — the container always sees the host's current device tree, so a `by-id` symlink stays valid across USB re-enumeration (see NFR-5)
 - Run as non-root; user in `dialout` group
 - Health check: the binary's availability state is `online`.
 
@@ -120,7 +120,9 @@ jkbms2mqtt is implemented in Rust on Tokio.
 
 ### NFR-5: USB / Serial Resilience
 
-EMI-induced USB disconnects and re-enumeration is normal operation (converter returns on the same path; `BMS_DEVICE` is fixed via Compose `by-id` mapping). The process must not restart or exit.
+EMI-induced USB disconnects and re-enumeration (e.g. `ttyUSB0` → `ttyUSB1`) is normal operation.
+
+The Docker `/dev` bind-mount is chosen over a single-device `devices:` mapping because the latter resolves the `by-id` symlink only once, at container start, so a re-enumeration onto a different node leaves the mapping stale until the container is restarted. The bind-mount instead gives the container a live view of the host's device tree, so the app can reconnect without issues.
 
 - **Disconnect** on: any `io::Error` on `read`/`write`, `read` returning 0 bytes, or `RECONNECT_THRESHOLD` (=5) consecutive soft failures (parse error / read timeout). Successful Frame `0x02` parse resets the counter.
 - **On disconnect:** close fd, discard partial-frame buffer, fail in-flight writes with transient error, publish `availability = offline` immediately.
