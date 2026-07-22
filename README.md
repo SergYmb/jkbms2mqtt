@@ -106,7 +106,6 @@ Every option can be set as a command-line flag or as an environment variable —
 | `MQTT_TLS` | `--mqtt-tls` | No | `false` | Enable TLS for the MQTT connection |
 | `MQTT_CLIENT_ID` | `--mqtt-client-id` | No | `jkbms2mqtt-<BMS_NAME>` | Override the MQTT client ID |
 | `BMS_SLAVE_ID` | `--bms-slave-id` | No | `1` | Modbus slave address of the BMS |
-| `BMS_BAUD` | — | No | `115200` | Serial baud rate (not currently configurable at runtime — hardcoded in the transport layer) |
 | `HA_DISCOVERY_PREFIX` | `--ha-discovery-prefix` | No | `homeassistant` | HA MQTT discovery prefix |
 | `LOG_LEVEL` | `--log-level` | No | `info` | Tracing filter (e.g. `info`, `jkbms2mqtt=debug`) |
 
